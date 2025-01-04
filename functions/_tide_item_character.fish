@@ -14,4 +14,5 @@ function _tide_item_character
             case visual
                 echo -ns $tide_character_vi_icon_visual
         end
+    set -e add_suffix
 end
