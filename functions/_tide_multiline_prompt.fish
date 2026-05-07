@@ -1,3 +1,9 @@
+# Item protocol:
+#   add_prefix is set before each item. _tide_print_item erases it on the
+#     first call so the prompt prefix is emitted once per line.
+#   add_suffix is set before each item. Items that are always last on their
+#     line (pwd, newline, character) erase it; the suffix is emitted only
+#     when add_suffix survives.
 function _tide_multiline_prompt
     set -g add_prefix
     _tide_side=left for item in $_tide_left_items

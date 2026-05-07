@@ -14,5 +14,7 @@ function _tide_item_character
             case visual
                 echo -ns $tide_character_vi_icon_visual
         end
+    # Items that are always last on their line erase add_suffix so
+    # _tide_multiline_prompt skips tide_<side>_prompt_suffix after them.
     set -e add_suffix
 end

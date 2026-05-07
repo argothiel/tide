@@ -11,7 +11,7 @@ end
 set -l tmpdir (mktemp -d)
 set -lx HOME $tmpdir
 set -lx COLUMNS 80
-set -lx dist_btwn_sides 80
+set -lx _tide_max_pwd_width 80
 set -l longDir alfa/bravo/charlie/delta/echo/foxtrot/golf/hotel/india/juliett/kilo/lima/mike/november/oscar/papa
 
 # ------------------------------------ICONS-----------------------------------

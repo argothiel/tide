@@ -22,17 +22,35 @@ end
 contains newline $_tide_left_items && set_color $tide_prompt_color_frame_and_connection -b normal | read -l prompt_and_frame_color
 
 contains newline $_tide_left_items &&
-  set -l left_frame_begin '╭─' &&
-  set -l left_frame_middle '│ ' &&
-  set -l left_frame_end '╰─' &&
-  set -l right_frame_begin '─╮' &&
-  set -l right_frame_middle ' │' &&
-  set -l right_frame_end '─╯'
+    set -l left_frame_begin '╭─' &&
+    set -l left_frame_middle '│ ' &&
+    set -l left_frame_end '╰─' &&
+    set -l right_frame_begin '─╮' &&
+    set -l right_frame_middle ' │' &&
+    set -l right_frame_end '─╯'
 
-set -l left_items_by_line (string split newline (echo $_tide_left_items))
+# Group items into per-line buckets, splitting on the literal `newline` item.
+# Each bucket is a space-joined string; downstream consumers do `string split ' '`.
+set -l left_items_by_line ''
+for item in $_tide_left_items
+    if test $item = newline
+        set -a left_items_by_line ''
+    else
+        set left_items_by_line[-1] "$left_items_by_line[-1] $item"
+    end
+end
 count $left_items_by_line | read -l _tide_lines_count_left
-set -l right_items_by_line (string split newline (echo $_tide_right_items))
+
+set -l right_items_by_line ''
+for item in $_tide_right_items
+    if test $item = newline
+        set -a right_items_by_line ''
+    else
+        set right_items_by_line[-1] "$right_items_by_line[-1] $item"
+    end
+end
 count $right_items_by_line | read -l _tide_lines_count_right
+
 math max $_tide_lines_count_left, $_tide_lines_count_right | read -l _tide_lines_count
 
 set -l fish_prompt_code "function fish_prompt"\n"   "
@@ -61,7 +79,7 @@ test "$tide_prompt_transient_enabled" = true &&
         echo -n '$color_normal '
         return
     end"\n\n
-    
+
 test "$tide_prompt_add_newline_before" = true && set -a fish_prompt_code "   echo"\n\n
 for line_no in (seq 1 $_tide_lines_count)
     set -l line_left $left_items_by_line[$line_no]
@@ -72,7 +90,7 @@ for line_no in (seq 1 $_tide_lines_count)
     math 5 \* $pwd_placeholder_count | read -l column_offset
 
     for side in left right
-        v=tide_"$side"_prompt_frame_enabled if test "$v"
+        v=tide_"$side"_prompt_frame_enabled if test "$$v" = true
             if test $line_no -eq 1
                 frame_var="$side"_frame box_line_var="$side"_frame_begin set $frame_var "$prompt_and_frame_color$$box_line_var"
             else if test $line_no -eq $_tide_lines_count
@@ -144,9 +162,9 @@ function fish_right_prompt"\n"   "
         test "$tide_prompt_transient_enabled" = true && set -a fish_prompt_code "set -e _tide_transient ||"
 
         if test $pwd_placeholder_count_right -gt 0
-            set -a fish_prompt_code "string replace -a @PWD@ (_tide_pwd) \"\$"$prompt_var"["(math 2 \* $_tide_lines_count)"]$right_frame$color_normal\""
+            set -a fish_prompt_code "string replace -a @PWD@ (_tide_pwd) \"\$"$prompt_var"["(math $line_no + $_tide_lines_count_left)"]$right_frame$color_normal\""
         else
-            set -a fish_prompt_code "string unescape \"\$"$prompt_var"["(math 2 \* $_tide_lines_count)"]$right_frame$color_normal\""
+            set -a fish_prompt_code "string unescape \"\$"$prompt_var"["(math $line_no + $_tide_lines_count_left)"]$right_frame$color_normal\""
         end
         set -a fish_prompt_code \n"end"
     end
