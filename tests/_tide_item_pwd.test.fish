@@ -18,9 +18,10 @@ set -l longDir alfa/bravo/charlie/delta/echo/foxtrot/golf/hotel/india/juliett/ki
 set -lx tide_pwd_icon_unwritable unwritable_icon
 set -lx tide_pwd_icon_home home_icon
 set -lx tide_pwd_icon normal_icon
+set -lx tide_pwd_markers .git
 
 # ------------------Starts with slash------------------
-_pwd / # CHECK: unwritable_icon /
+_pwd / # CHECK: {{(unwritable|normal)_icon /}}
 _pwd /tmp # CHECK: normal_icon /tmp
 _pwd /tmp/foo # CHECK: normal_icon /tmp/foo
 

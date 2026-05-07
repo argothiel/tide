@@ -13,6 +13,7 @@ mock php --version "echo \
 Copyright (c) The PHP Group
 Zend Engine v4.0.2, Copyright (c) Zend Technologies'"
 
+set -lx tide_php_icon 
 _php # CHECK:
 
 touch composer.json

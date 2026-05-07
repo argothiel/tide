@@ -7,6 +7,7 @@ end
 
 set -lx tide_docker_icon 
 
+set -lx tide_docker_default_contexts default colima
 mock docker "context inspect" "echo default"
 _docker # CHECK:
 

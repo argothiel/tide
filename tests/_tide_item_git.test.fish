@@ -10,6 +10,7 @@ function _git_item
 end
 
 # Create directory
+set -lx tide_git_truncation_length 24
 set -l dir (mktemp -d)
 mkdir -p $dir/{normal-repo, bare-repo, submodule-repo, massive-status-repo}
 
@@ -40,6 +41,7 @@ _git_item # CHECK: main +1
 
 git config --local user.email "you@example.com"
 git config --local user.name "Your Name"
+git config --local commit.gpgsign false
 _git commit -am 'Add foo'
 
 # Dirty
@@ -80,6 +82,7 @@ _git_item # CHECK: main
 cd $dir/submodule-repo
 _git init
 _git branch -m main
+git config --local commit.gpgsign false
 
 # temporary workaround for git bug https://bugs.launchpad.net/ubuntu/+source/git/+bug/1993586
 _git -c protocol.file.allow=always submodule add $dir/normal-repo

@@ -5,6 +5,7 @@ function _pulumi
     _tide_decolor (_tide_item_pulumi)
 end
 
+set -lx tide_pulumi_icon 
 set -l tmpdir (mktemp -d)
 cd $tmpdir
 

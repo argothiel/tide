@@ -5,6 +5,7 @@ function _context
     _tide_decolor (_tide_item_context)
 end
 
+set EUID 1000
 set -lx tide_context_hostname_parts 5
 
 set -lx tide_context_always_display false
