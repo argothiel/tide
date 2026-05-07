@@ -53,15 +53,23 @@ count $right_items_by_line | read -l _tide_lines_count_right
 
 math max $_tide_lines_count_left, $_tide_lines_count_right | read -l _tide_lines_count
 
+# Build the body of `function fish_prompt` as a list of fragments and `eval` it
+# at the bottom. _tide_emit appends to the list; --no-scope-shadowing lets it
+# see this file's local fish_prompt_code.
 set -l fish_prompt_code "function fish_prompt"\n"   "
-
-if test "$tide_prompt_transient_enabled" = true
-    set -a fish_prompt_code "set -lx _tide_status \$status"\n\n"   "
-else
-    set -a fish_prompt_code "_tide_status=\$status"
+function _tide_emit --no-scope-shadowing
+    set -a fish_prompt_code $argv
 end
 
-set -a fish_prompt_code "_tide_pipestatus=\$pipestatus if not set -e _tide_repaint
+# === status capture ===
+if test "$tide_prompt_transient_enabled" = true
+    _tide_emit "set -lx _tide_status \$status"\n\n"   "
+else
+    _tide_emit "_tide_status=\$status"
+end
+
+# === background refresh job (computes the next prompt off the hot path) ===
+_tide_emit "_tide_pipestatus=\$pipestatus if not set -e _tide_repaint
         jobs -q && jobs -p | count | read -lx _tide_jobs
         $fish_path -c \"set _tide_pipestatus \$_tide_pipestatus
             set _tide_parent_dirs \$_tide_parent_dirs
@@ -72,15 +80,18 @@ set -a fish_prompt_code "_tide_pipestatus=\$pipestatus if not set -e _tide_repai
         set -g _tide_last_pid \$last_pid
     end"\n\n
 
+# === transient short-circuit (collapse to just the character on submit) ===
 test "$tide_prompt_transient_enabled" = true &&
-    set -a fish_prompt_code "   if set -q _tide_transient
+    _tide_emit "   if set -q _tide_transient
         echo -n \e\[0J
         add_prefix= _tide_item_character
         echo -n '$color_normal '
         return
     end"\n\n
 
-test "$tide_prompt_add_newline_before" = true && set -a fish_prompt_code "   echo"\n\n
+test "$tide_prompt_add_newline_before" = true && _tide_emit "   echo"\n\n
+
+# === per-line render: emit one block per output line ===
 for line_no in (seq 1 $_tide_lines_count)
     set -l line_left $left_items_by_line[$line_no]
     set -l line_right $right_items_by_line[$line_no]
@@ -89,6 +100,8 @@ for line_no in (seq 1 $_tide_lines_count)
     math $pwd_placeholder_count_left \+ $pwd_placeholder_count_right | read -l pwd_placeholder_count
     math 5 \* $pwd_placeholder_count | read -l column_offset
 
+    # Pick the box-drawing chars for this line on each side; subtract 2 from
+    # column_offset for every framed side (frame consumes 2 columns of width).
     for side in left right
         v=tide_"$side"_prompt_frame_enabled if test "$$v" = true
             if test $line_no -eq 1
@@ -102,6 +115,8 @@ for line_no in (seq 1 $_tide_lines_count)
         end
     end
 
+    # Top line uses the frame-color connection icon between sides; subsequent
+    # lines just use plain spaces in the normal color.
     if test $line_no -eq 1
         set -f filler $tide_prompt_icon_connection
         set -f filler_color $prompt_and_frame_color
@@ -110,67 +125,76 @@ for line_no in (seq 1 $_tide_lines_count)
         set -f filler_color $color_normal
     end
 
+    # Compute dist_btwn_sides (used for filler width and pwd truncation budget).
+    # Only needed on the top line or any line with a @PWD@ placeholder.
     test $line_no -eq 1 || test $pwd_placeholder_count -gt 0 &&
-        set -a fish_prompt_code "   math \$COLUMNS - (string length -V \"\$"$prompt_var"[$line_no]\$"$prompt_var"["(math $line_no + $_tide_lines_count_left)"]\") + $column_offset | read -l dist_btwn_sides"\n
+        _tide_emit "   math \$COLUMNS - (string length -V \"\$"$prompt_var"[$line_no]\$"$prompt_var"["(math $line_no + $_tide_lines_count_left)"]\") + $column_offset | read -l dist_btwn_sides"\n
 
     if test $pwd_placeholder_count_left -eq 0
-        set -a fish_prompt_code "   echo -n \e\[0J'$left_frame'\$"$prompt_var"[$line_no]'$filler_color'"
+        # No @PWD@ on left of this line: emit literal text.
+        _tide_emit "   echo -n \e\[0J'$left_frame'\$"$prompt_var"[$line_no]'$filler_color'"
     else
+        # Has @PWD@: compute the per-pwd width budget, then expand @PWD@.
         if test $line_no -eq $_tide_lines_count
+            # last line: reserve tide_prompt_min_cols for the prompt input
             if test $pwd_placeholder_count -eq 1
-                set -a fish_prompt_code "   math \$dist_btwn_sides - $tide_prompt_min_cols | read -lx _tide_max_pwd_width"\n
+                _tide_emit "   math \$dist_btwn_sides - $tide_prompt_min_cols | read -lx _tide_max_pwd_width"\n
             else
-                set -a fish_prompt_code "   math \( \$dist_btwn_sides - $tide_prompt_min_cols \) / $pwd_placeholder_count | read -lx _tide_max_pwd_width"\n
+                _tide_emit "   math \( \$dist_btwn_sides - $tide_prompt_min_cols \) / $pwd_placeholder_count | read -lx _tide_max_pwd_width"\n
             end
         else
+            # inner line: full width is available
             if test $pwd_placeholder_count -eq 1
-                set -a fish_prompt_code "   set -lx _tide_max_pwd_width \$dist_btwn_sides"\n
+                _tide_emit "   set -lx _tide_max_pwd_width \$dist_btwn_sides"\n
             else
-                set -a fish_prompt_code "   math \$dist_btwn_sides / $pwd_placeholder_count | read -lx _tide_max_pwd_width"\n
+                _tide_emit "   math \$dist_btwn_sides / $pwd_placeholder_count | read -lx _tide_max_pwd_width"\n
             end
         end
-        set -a fish_prompt_code "   echo -n \e\[0J'$left_frame'(string replace -a @PWD@ (_tide_pwd) \"\$"$prompt_var"[$line_no]\")'$filler_color'"
+        _tide_emit "   echo -n \e\[0J'$left_frame'(string replace -a @PWD@ (_tide_pwd) \"\$"$prompt_var"[$line_no]\")'$filler_color'"
     end
 
     if test $line_no -ne $_tide_lines_count
-        set -a fish_prompt_code \n"    string repeat -Nm(math max 0,"
+        # Inner line: emit the filler (connection icon or spaces) and right segment inline.
+        _tide_emit \n"    string repeat -Nm(math max 0,"
         if test $pwd_placeholder_count = 0
-            set -a fish_prompt_code "\$dist_btwn_sides) '$filler'"
+            _tide_emit "\$dist_btwn_sides) '$filler'"
         else if test $pwd_placeholder_count -eq 1
-            set -a fish_prompt_code "\$dist_btwn_sides - \$_tide_pwd_len) '$filler'"
+            _tide_emit "\$dist_btwn_sides - \$_tide_pwd_len) '$filler'"
         else if test $pwd_placeholder_count -gt 1
-            set -a fish_prompt_code "\$dist_btwn_sides - \$_tide_pwd_len \* $pwd_placeholder_count) '$filler'"
+            _tide_emit "\$dist_btwn_sides - \$_tide_pwd_len \* $pwd_placeholder_count) '$filler'"
         end
         if test $pwd_placeholder_count_right -gt 0
-            set -a fish_prompt_code \n"    echo (string replace -a @PWD@ (_tide_pwd) \"\$"$prompt_var"["(math $line_no + $_tide_lines_count_left)"]\")\"$right_frame\""\n\n
+            _tide_emit \n"    echo (string replace -a @PWD@ (_tide_pwd) \"\$"$prompt_var"["(math $line_no + $_tide_lines_count_left)"]\")\"$right_frame\""\n\n
         else
-            set -a fish_prompt_code \n"    echo \"\$"$prompt_var"["(math $line_no + $_tide_lines_count_left)"]$right_frame\""\n
+            _tide_emit \n"    echo \"\$"$prompt_var"["(math $line_no + $_tide_lines_count_left)"]$right_frame\""\n
         end
     else
-        set -a fish_prompt_code "''
+        # Last line: close fish_prompt and start fish_right_prompt for the right side.
+        _tide_emit "''
 end
 
 function fish_right_prompt"\n"   "
         if test $pwd_placeholder_count_right -gt 0
-            set -a fish_prompt_code "math \$COLUMNS - (string length -V \"\$"$prompt_var"[$line_no]\$"$prompt_var"["(math $line_no + $_tide_lines_count_left)"]\") + $column_offset | read -l dist_btwn_sides"\n
+            _tide_emit "math \$COLUMNS - (string length -V \"\$"$prompt_var"[$line_no]\$"$prompt_var"["(math $line_no + $_tide_lines_count_left)"]\") + $column_offset | read -l dist_btwn_sides"\n
             if test $pwd_placeholder_count -eq 1
-                set -a fish_prompt_code "   math \$dist_btwn_sides - $tide_prompt_min_cols | read -lx _tide_max_pwd_width"\n"   "
+                _tide_emit "   math \$dist_btwn_sides - $tide_prompt_min_cols | read -lx _tide_max_pwd_width"\n"   "
             else
-                set -a fish_prompt_code "   math \( \$dist_btwn_sides - $tide_prompt_min_cols \) / $pwd_placeholder_count | read -lx _tide_max_pwd_width"\n"   "
+                _tide_emit "   math \( \$dist_btwn_sides - $tide_prompt_min_cols \) / $pwd_placeholder_count | read -lx _tide_max_pwd_width"\n"   "
             end
         end
-        test "$tide_prompt_transient_enabled" = true && set -a fish_prompt_code "set -e _tide_transient ||"
+        test "$tide_prompt_transient_enabled" = true && _tide_emit "set -e _tide_transient ||"
 
         if test $pwd_placeholder_count_right -gt 0
-            set -a fish_prompt_code "string replace -a @PWD@ (_tide_pwd) \"\$"$prompt_var"["(math $line_no + $_tide_lines_count_left)"]$right_frame$color_normal\""
+            _tide_emit "string replace -a @PWD@ (_tide_pwd) \"\$"$prompt_var"["(math $line_no + $_tide_lines_count_left)"]$right_frame$color_normal\""
         else
-            set -a fish_prompt_code "string unescape \"\$"$prompt_var"["(math $line_no + $_tide_lines_count_left)"]$right_frame$color_normal\""
+            _tide_emit "string unescape \"\$"$prompt_var"["(math $line_no + $_tide_lines_count_left)"]$right_frame$color_normal\""
         end
-        set -a fish_prompt_code \n"end"
+        _tide_emit \n"end"
     end
 end
 
 eval $fish_prompt_code
+functions -e _tide_emit
 
 # Inheriting instead of evaling because here load time is more important than runtime
 function _tide_on_fish_exit --on-event fish_exit --inherit-variable prompt_var
