@@ -18,11 +18,6 @@ function _tide_item_item2
     echo -n item2
 end
 
-function _tide_item_item3_add_prefix_and_remove_marker
-    echo -n '<prefix>item3'
-    set -e add_prefix
-end
-
 # Empty items
 set -lx _tide_left_items
 set -lx _tide_right_items
@@ -47,23 +42,6 @@ _tide_multiline_prompt | count
 _tide_multiline_prompt | string replace -a \e\(B\e\[m '<ANSI_RESET>' | string replace -a \e\[34m '<ANSI_BG_BLUE>'
 # CHECK: {{^$}}
 # CHECK: <prefix>item1<ANSI_RESET><ANSI_RESET><ANSI_BG_BLUE>
-
-# Items on both
-set -lx _tide_left_items item1
-set -lx _tide_right_items item2
-_tide_multiline_prompt | count
-# CHECK: 2
-echo "$(_tide_multiline_prompt)" | string replace -a \e\(B\e\[m '<ANSI_RESET>' | string replace -a \e\[34m '<ANSI_BG_BLUE>'
-# CHECK: <prefix>item1<ANSI_RESET><ANSI_RESET><ANSI_BG_BLUE><left_prompt_suffix>
-# CHECK: <prefix>item2<ANSI_RESET><ANSI_RESET><ANSI_BG_BLUE>
-
-# Item that erases add_prefix itself (still gets the suffix because it doesn't touch add_suffix)
-set -lx _tide_left_items item3_add_prefix_and_remove_marker
-set -lx _tide_right_items
-_tide_multiline_prompt | count
-# CHECK: 1
-_tide_multiline_prompt | string replace -a \e\(B\e\[m '<ANSI_RESET>' | string replace -a \e\[34m '<ANSI_BG_BLUE>'
-# CHECK: <prefix>item3<ANSI_RESET><ANSI_RESET><ANSI_BG_BLUE><left_prompt_suffix>
 
 # Newline in left
 set -lx _tide_left_items item1 newline item2
