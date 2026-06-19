@@ -53,6 +53,15 @@ _tide_multiline_prompt | string replace -a \e\(B\e\[m '<ANSI_RESET>' | string re
 # CHECK: <prefix>item2<ANSI_RESET><ANSI_RESET><ANSI_BG_BLUE><left_prompt_suffix>
 # CHECK: <prefix>item1<ANSI_RESET><ANSI_RESET><ANSI_BG_BLUE>
 
+# Single item per side, no newline (baseline 1-line prompt)
+set -lx _tide_left_items item1
+set -lx _tide_right_items item1
+_tide_multiline_prompt | count
+# CHECK: 2
+_tide_multiline_prompt | string replace -a \e\(B\e\[m '<ANSI_RESET>' | string replace -a \e\[34m '<ANSI_BG_BLUE>'
+# CHECK: <prefix>item1<ANSI_RESET><ANSI_RESET><ANSI_BG_BLUE><left_prompt_suffix>
+# CHECK: <prefix>item1<ANSI_RESET><ANSI_RESET><ANSI_BG_BLUE>
+
 # Multiple items per line, no newline (1-line prompt with two items per side)
 set -lx _tide_left_items item1 item2
 set -lx _tide_right_items item1
